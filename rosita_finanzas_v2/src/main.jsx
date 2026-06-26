@@ -47,47 +47,121 @@ function Dashboard(){
  const cash=totalVentas-totalGastos-ivaPagar-ppm;
  const utilidad=totalVentas-totalGastos;
 
- const meses=['Ene','Feb','Mar','Abr','May','Jun'].map((label,i)=>{
-   const key=`2026-${String(i+1).padStart(2,'0')}`;
-   return {
-     mes:label,
-     ventas:d.ventas.filter(x=>ym(x.fecha)===key).reduce((a,x)=>a+Number(x.total||0),0),
-     gastos:d.gastos.filter(x=>ym(x.fecha)===key).reduce((a,x)=>a+Number(x.monto||0),0)
-   }
- });
+ const meses=[...new Set([...d.ventas.map(x=>ym(x.fecha)),...d.gastos.map(x=>ym(x.fecha))])]
+   .sort().slice(-6).map(k=>({
+     mes:k.slice(5,7),
+     ventas:d.ventas.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.total||0),0),
+     gastos:d.gastos.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.monto||0),0)
+   }));
 
  const gastosCat=Object.values(gastosMes.reduce((o,g)=>{
-   const k=g.categoria||'Otros';
+   let k=g.categoria||'Otros';
    o[k]=o[k]||{name:k,value:0};
    o[k].value+=Number(g.monto||0);
    return o;
  },{}));
 
- const pagos=[
-   {name:'Transferencia',value:ventasMes.filter(v=>v.forma_pago==='Transferencia').reduce((a,v)=>a+Number(v.total||0),0)},
-   {name:'Débito (MP)',value:ventasMes.filter(v=>String(v.forma_pago).includes('Mercado')).reduce((a,v)=>a+Number(v.total||0),0)},
-   {name:'Efectivo',value:ventasMes.filter(v=>v.forma_pago==='Efectivo').reduce((a,v)=>a+Number(v.total||0),0)},
-   {name:'Crédito',value:ventasMes.filter(v=>v.forma_pago==='Crédito').reduce((a,v)=>a+Number(v.total||0),0)}
- ];
+ const pagos=Object.values(ventasMes.reduce((o,v)=>{
+   let k=(v.forma_pago||'Sin pago').replace('Mercado Pago','MP');
+   o[k]=o[k]||{name:k,value:0};
+   o[k].value+=Number(v.total||0);
+   return o;
+ },{}));
 
- const colors=['#8d22d8','#ed43b9','#ff9f1c','#22c55e'];
+ const colors=['#8d22d8','#ed43b9','#ff9f1c','#2ecc71','#3498db','#f72585'];
 
  return <>
-   <div className="dash-title">
-     <h1>¡Buenos días, Rosita! 👋</h1>
-     <p>Resumen financiero de hoy</p>
+   <div className="hero">
+     <div>
+       <h1>¡Buenos días, Rosita! 👋</h1>
+       <p>Resumen financiero de hoy</p>
+     </div>
    </div>
 
    <section className="cards pro">
-     <Card t="Ventas del mes" v={money(totalVentas)} icon="🛒" sub="100% vs mes anterior"/>
-     <Card t="Gastos del mes" v={money(totalGastos)} icon="👛" sub="0% vs mes anterior"/>
+     <Card t="Ventas del mes" v={money(totalVentas)} icon="🛒" sub="Ingreso bruto mensual"/>
+     <Card t="Gastos del mes" v={money(totalGastos)} icon="👛" sub="Total gastos registrados"/>
      <Card t="Cash disponible" v={money(cash)} icon="💵" sub="Disponibilidad real"/>
      <Card t="IVA estimado" v={money(ivaPagar)} icon="%" sub="Débito fiscal acumulado"/>
-     <Card t="Utilidad estimada" v={money(utilidad)} icon="📊" sub="En el mes actual"/>
+     <Card t="Utilidad estimada" v={money(utilidad)} icon="📊" sub="Antes de impuestos"/>
    </section>
 
-   <section className="
-function Card({t,v}){return <div className="card"><span>{t}</span><strong>{v}</strong></div>}
+   <section className="grid dashboard-grid">
+     <Panel title="Ventas vs Gastos">
+       <p className="panel-sub">Comparación mensual</p>
+       <ResponsiveContainer width="100%" height={260}>
+         <BarChart data={meses}>
+           <CartesianGrid strokeDasharray="3 3" stroke="#f3e3fa"/>
+           <XAxis dataKey="mes"/>
+           <YAxis/>
+           <Tooltip formatter={money}/>
+           <Bar dataKey="ventas" name="Ventas" fill="#8d22d8" radius={[10,10,0,0]}/>
+           <Bar dataKey="gastos" name="Gastos" fill="#ed43b9" radius={[10,10,0,0]}/>
+         </BarChart>
+       </ResponsiveContainer>
+     </Panel>
+
+     <Panel title="Gastos por categoría">
+       <p className="panel-sub">Distribución del mes</p>
+       {gastosCat.length===0 ? <div className="empty-state compact"><div className="empty-icon">🧾</div><h3>Aún no hay gastos</h3><p>Registra gastos para ver la distribución.</p></div> :
+       <ResponsiveContainer width="100%" height={260}>
+         <PieChart>
+           <Pie data={gastosCat} dataKey="value" nameKey="name" innerRadius={70} outerRadius={105}>
+             {gastosCat.map((_,i)=><Cell key={i} fill={colors[i%colors.length]}/>)}
+           </Pie>
+           <Tooltip formatter={money}/>
+         </PieChart>
+       </ResponsiveContainer>}
+     </Panel>
+   </section>
+
+   <section className="grid bottom-grid">
+     <Panel title="Ventas recientes">
+       <Table rows={ventasMes.slice(0,5)} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={()=>{}}/>
+     </Panel>
+
+     <Panel title="Métodos de pago">
+       {pagos.length===0 ? <div className="empty-state small"><div className="empty-icon">💳</div><p>Sin pagos registrados</p></div> :
+       <ResponsiveContainer width="100%" height={220}>
+         <PieChart>
+           <Pie data={pagos} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85}>
+             {pagos.map((_,i)=><Cell key={i} fill={colors[i%colors.length]}/>)}
+           </Pie>
+           <Tooltip formatter={money}/>
+         </PieChart>
+       </ResponsiveContainer>}
+     </Panel>
+
+     <Panel title="Resumen financiero del mes">
+       <div className="finance-list vertical">
+         <b>Total ventas <span>{money(totalVentas)}</span></b>
+         <b>Total gastos <span>{money(totalGastos)}</span></b>
+         <b>IVA estimado <span>{money(ivaPagar)}</span></b>
+         <b>PPM 1% <span>{money(ppm)}</span></b>
+         <b>Utilidad <span>{money(utilidad)}</span></b>
+         <b className="cash">Cash disponible <span>{money(cash)}</span></b>
+       </div>
+     </Panel>
+   </section>
+
+   <div className="tip">
+     <span>💡</span>
+     <b>Consejo del día:</b>
+     <p>Mantén un registro constante de ventas y gastos para conocer tu utilidad real.</p>
+   </div>
+ </>
+}
+
+function Card({t,v,icon,sub}){
+ return <div className="card stat-card">
+   <div>
+     <span>{t}</span>
+     <strong>{v}</strong>
+     <small>{sub}</small>
+   </div>
+   <em>{icon}</em>
+ </div>
+}
 function Panel({title,children}){return <div className="panel"><h2>{title}</h2>{children}</div>}
 function Ventas(){const {ventas,clientes,servicios,load}=useData(); const [f,setF]=useState({fecha:today(),precio:0,adicional:0,forma_pago:'Débito (Mercado Pago)',estado:'Pagado',documento:'Boleta',afecta_iva:true}); async function save(){const total=Number(f.precio||0)+Number(f.adicional||0); const iva= f.afecta_iva ? calcIVA(total).iva : 0; const neto=f.afecta_iva?calcIVA(total).neto:total; await supabase.from('ventas').insert({...f,total,iva,neto}); setF({...f,precio:0,adicional:0}); load()} async function del(id){if(confirm('¿Eliminar venta?')){await supabase.from('ventas').delete().eq('id',id);load()}} function exp(){const ws=XLSX.utils.json_to_sheet(ventas); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Ventas'); XLSX.writeFile(wb,'ventas_rosita.xlsx')}
  return <CrudForm title="Registrar venta" onSave={save} extra={<button onClick={exp}><Download size={16}/>Excel</button>}><input type="date" value={f.fecha} onChange={e=>setF({...f,fecha:e.target.value})}/><select value={f.cliente_id||''} onChange={e=>setF({...f,cliente_id:e.target.value})}><option>Cliente</option>{clientes.map(c=><option value={c.id} key={c.id}>{c.nombre}</option>)}</select><select value={f.servicio_id||''} onChange={e=>setF({...f,servicio_id:e.target.value})}><option>Servicio</option>{servicios.map(s=><option value={s.id} key={s.id}>{s.nombre}</option>)}</select><input placeholder="Precio" type="number" value={f.precio} onChange={e=>setF({...f,precio:e.target.value})}/><input placeholder="Adicional" type="number" value={f.adicional} onChange={e=>setF({...f,adicional:e.target.value})}/><select value={f.forma_pago} onChange={e=>setF({...f,forma_pago:e.target.value})}><option>Débito (Mercado Pago)</option><option>Efectivo</option><option>Transferencia</option><option>Crédito</option></select><select value={f.documento} onChange={e=>setF({...f,documento:e.target.value})}><option>Boleta</option><option>Factura</option><option>Sin documento</option></select><Table rows={ventas} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={del}/></CrudForm>}
