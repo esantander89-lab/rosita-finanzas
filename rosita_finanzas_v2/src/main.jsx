@@ -31,8 +31,101 @@ function Shell({tab,setTab,session}){
  return <div className="app"><aside><div className="brand"><img src="/rosita.jpg"/><div><h2>Rosita Finanzas</h2><span>v2.0 · React + Supabase</span></div></div>{items.map(([id,label,Icon])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}><Icon size={18}/>{label}</button>)}<button onClick={()=>supabase.auth.signOut()}><LogOut size={18}/>Salir</button></aside><main><header><div><h1>{items.find(i=>i[0]===tab)?.[1]}</h1><p>Rosita Cortes Studio · sistema financiero y operacional</p></div><b>{session.user.email}</b></header>{tab==='dashboard'&&<Dashboard/>}{tab==='ventas'&&<Ventas/>}{tab==='clientes'&&<Clientes/>}{tab==='servicios'&&<Servicios/>}{tab==='gastos'&&<Gastos/>}{tab==='inventario'&&<Inventario/>}{tab==='finanzas'&&<Finanzas/>}</main></div>
 }
 function useData(){ const [data,setData]=useState({ventas:[],gastos:[],clientes:[],servicios:[]}); const [loading,setLoading]=useState(true); async function load(){setLoading(true); const [v,g,c,s]=await Promise.all([supabase.from('ventas').select('*, clientes(nombre), servicios(nombre)').order('fecha',{ascending:false}),supabase.from('gastos').select('*').order('fecha',{ascending:false}),supabase.from('clientes').select('*').order('nombre'),supabase.from('servicios').select('*').order('nombre')]); setData({ventas:v.data||[],gastos:g.data||[],clientes:c.data||[],servicios:s.data||[]}); setLoading(false);} useEffect(()=>{load()},[]); return {...data,loading,load};}
-function Dashboard(){ const d=useData(); const m=ym(today()); const ventasMes=d.ventas.filter(v=>ym(v.fecha)===m); const gastosMes=d.gastos.filter(g=>ym(g.fecha)===m); const totalVentas=ventasMes.reduce((a,v)=>a+Number(v.total||0),0); const totalGastos=gastosMes.reduce((a,g)=>a+Number(g.monto||0),0); const ivaVentas=ventasMes.reduce((a,v)=>a+(Number(v.iva)||calcIVA(v.total).iva),0); const ivaCompras=gastosMes.filter(g=>g.tiene_factura&&g.afecta_iva).reduce((a,g)=>a+(Number(g.iva)||calcIVA(g.monto).iva),0); const ivaPagar=Math.max(0,ivaVentas-ivaCompras); const ppm=Math.round(totalVentas*0.01); const cash=totalVentas-totalGastos-ivaPagar-ppm; const gastosCat=Object.values(gastosMes.reduce((o,g)=>{let k=g.categoria||'Otros'; o[k]=o[k]||{name:k,value:0}; o[k].value+=Number(g.monto||0); return o;},{})); const meses=[...new Set([...d.ventas.map(x=>ym(x.fecha)),...d.gastos.map(x=>ym(x.fecha))])].sort().slice(-6).map(k=>({mes:k, ventas:d.ventas.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.total||0),0), gastos:d.gastos.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.monto||0),0)}));
- return <><section className="cards"><Card t="Ventas mes" v={money(totalVentas)}/><Card t="Gastos mes" v={money(totalGastos)}/><Card t="IVA estimado" v={money(ivaPagar)}/><Card t="Cash disponible" v={money(cash)}/></section><section className="grid"><Panel title="Ventas vs gastos por mes"><ResponsiveContainer width="100%" height={260}><BarChart data={meses}><XAxis dataKey="mes"/><YAxis/><Tooltip formatter={money}/><Bar dataKey="ventas"/><Bar dataKey="gastos"/></BarChart></ResponsiveContainer></Panel><Panel title="Gastos por categoría"><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={gastosCat} dataKey="value" nameKey="name" label>{gastosCat.map((_,i)=><Cell key={i}/>)}</Pie><Tooltip formatter={money}/></PieChart></ResponsiveContainer></Panel></section><Panel title="Resumen financiero del mes"><div className="finance-list"><b>IVA débito ventas: {money(ivaVentas)}</b><b>IVA crédito compras: {money(ivaCompras)}</b><b>PPM estimado 1%: {money(ppm)}</b><b>Utilidad estimada: {money(totalVentas-totalGastos)}</b></div></Panel></>}
+function Dashboard(){
+ const d=useData();
+ const m=ym(today());
+
+ const ventasMes=d.ventas.filter(v=>ym(v.fecha)===m);
+ const gastosMes=d.gastos.filter(g=>ym(g.fecha)===m);
+
+ const totalVentas=ventasMes.reduce((a,v)=>a+Number(v.total||0),0);
+ const totalGastos=gastosMes.reduce((a,g)=>a+Number(g.monto||0),0);
+
+ const ivaVentas=ventasMes.reduce((a,v)=>a+(Number(v.iva)||calcIVA(v.total).iva),0);
+ const ivaCompras=gastosMes.filter(g=>g.tiene_factura&&g.afecta_iva).reduce((a,g)=>a+(Number(g.iva)||calcIVA(g.monto).iva),0);
+ const ivaPagar=Math.max(0,ivaVentas-ivaCompras);
+ const ppm=Math.round(totalVentas*0.01);
+ const cash=totalVentas-totalGastos-ivaPagar-ppm;
+ const utilidad=totalVentas-totalGastos;
+
+ const gastosCat=Object.values(gastosMes.reduce((o,g)=>{
+   let k=g.categoria||'Otros';
+   o[k]=o[k]||{name:k,value:0};
+   o[k].value+=Number(g.monto||0);
+   return o;
+ },{}));
+
+ const meses=[...new Set([...d.ventas.map(x=>ym(x.fecha)),...d.gastos.map(x=>ym(x.fecha))])]
+   .sort()
+   .slice(-6)
+   .map(k=>({
+     mes:k,
+     ventas:d.ventas.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.total||0),0),
+     gastos:d.gastos.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.monto||0),0)
+   }));
+
+ const colors=['#8d22d8','#ed43b9','#ff9f1c','#2ecc71','#3498db','#f72585'];
+
+ return <>
+   <section className="cards">
+     <Card t="Ventas del mes" v={money(totalVentas)}/>
+     <Card t="Gastos del mes" v={money(totalGastos)}/>
+     <Card t="IVA estimado" v={money(ivaPagar)}/>
+     <Card t="Cash disponible" v={money(cash)}/>
+   </section>
+
+   <section className="grid">
+     <Panel title="Ventas vs gastos por mes">
+       <ResponsiveContainer width="100%" height={280}>
+         <BarChart data={meses}>
+           <CartesianGrid strokeDasharray="3 3" stroke="#f1d9fa"/>
+           <XAxis dataKey="mes"/>
+           <YAxis/>
+           <Tooltip formatter={money}/>
+           <Bar dataKey="ventas" name="Ventas" fill="#8d22d8" radius={[10,10,0,0]}/>
+           <Bar dataKey="gastos" name="Gastos" fill="#ed43b9" radius={[10,10,0,0]}/>
+         </BarChart>
+       </ResponsiveContainer>
+     </Panel>
+
+     <Panel title="Gastos por categoría">
+       {gastosCat.length === 0 ? (
+         <div className="empty-state">
+           <div className="empty-icon">🧾</div>
+           <h3>Aún no hay gastos</h3>
+           <p>Registra tus gastos para ver el gráfico por categoría.</p>
+         </div>
+       ) : (
+         <ResponsiveContainer width="100%" height={280}>
+           <PieChart>
+             <Pie data={gastosCat} dataKey="value" nameKey="name" innerRadius={70} outerRadius={110} label>
+               {gastosCat.map((_,i)=><Cell key={i} fill={colors[i % colors.length]}/>)}
+             </Pie>
+             <Tooltip formatter={money}/>
+           </PieChart>
+         </ResponsiveContainer>
+       )}
+     </Panel>
+   </section>
+
+   <section className="grid three">
+     <Panel title="Últimas ventas">
+       <Table rows={ventasMes.slice(0,5)} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={()=>{}}/>
+     </Panel>
+
+     <Panel title="Resumen financiero del mes">
+       <div className="finance-list vertical">
+         <b>Total ventas: {money(totalVentas)}</b>
+         <b>Total gastos: {money(totalGastos)}</b>
+         <b>IVA estimado: {money(ivaPagar)}</b>
+         <b>PPM estimado 1%: {money(ppm)}</b>
+         <b>Utilidad estimada: {money(utilidad)}</b>
+         <b className="cash">Cash disponible: {money(cash)}</b>
+       </div>
+     </Panel>
+   </section>
+ </>
+}
 function Card({t,v}){return <div className="card"><span>{t}</span><strong>{v}</strong></div>}
 function Panel({title,children}){return <div className="panel"><h2>{title}</h2>{children}</div>}
 function Ventas(){const {ventas,clientes,servicios,load}=useData(); const [f,setF]=useState({fecha:today(),precio:0,adicional:0,forma_pago:'Débito (Mercado Pago)',estado:'Pagado',documento:'Boleta',afecta_iva:true}); async function save(){const total=Number(f.precio||0)+Number(f.adicional||0); const iva= f.afecta_iva ? calcIVA(total).iva : 0; const neto=f.afecta_iva?calcIVA(total).neto:total; await supabase.from('ventas').insert({...f,total,iva,neto}); setF({...f,precio:0,adicional:0}); load()} async function del(id){if(confirm('¿Eliminar venta?')){await supabase.from('ventas').delete().eq('id',id);load()}} function exp(){const ws=XLSX.utils.json_to_sheet(ventas); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Ventas'); XLSX.writeFile(wb,'ventas_rosita.xlsx')}
