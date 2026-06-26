@@ -40,7 +40,6 @@ function Dashboard(){
 
  const totalVentas=ventasMes.reduce((a,v)=>a+Number(v.total||0),0);
  const totalGastos=gastosMes.reduce((a,g)=>a+Number(g.monto||0),0);
-
  const ivaVentas=ventasMes.reduce((a,v)=>a+(Number(v.iva)||calcIVA(v.total).iva),0);
  const ivaCompras=gastosMes.filter(g=>g.tiene_factura&&g.afecta_iva).reduce((a,g)=>a+(Number(g.iva)||calcIVA(g.monto).iva),0);
  const ivaPagar=Math.max(0,ivaVentas-ivaCompras);
@@ -48,84 +47,46 @@ function Dashboard(){
  const cash=totalVentas-totalGastos-ivaPagar-ppm;
  const utilidad=totalVentas-totalGastos;
 
+ const meses=['Ene','Feb','Mar','Abr','May','Jun'].map((label,i)=>{
+   const key=`2026-${String(i+1).padStart(2,'0')}`;
+   return {
+     mes:label,
+     ventas:d.ventas.filter(x=>ym(x.fecha)===key).reduce((a,x)=>a+Number(x.total||0),0),
+     gastos:d.gastos.filter(x=>ym(x.fecha)===key).reduce((a,x)=>a+Number(x.monto||0),0)
+   }
+ });
+
  const gastosCat=Object.values(gastosMes.reduce((o,g)=>{
-   let k=g.categoria||'Otros';
+   const k=g.categoria||'Otros';
    o[k]=o[k]||{name:k,value:0};
    o[k].value+=Number(g.monto||0);
    return o;
  },{}));
 
- const meses=[...new Set([...d.ventas.map(x=>ym(x.fecha)),...d.gastos.map(x=>ym(x.fecha))])]
-   .sort()
-   .slice(-6)
-   .map(k=>({
-     mes:k,
-     ventas:d.ventas.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.total||0),0),
-     gastos:d.gastos.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.monto||0),0)
-   }));
+ const pagos=[
+   {name:'Transferencia',value:ventasMes.filter(v=>v.forma_pago==='Transferencia').reduce((a,v)=>a+Number(v.total||0),0)},
+   {name:'Débito (MP)',value:ventasMes.filter(v=>String(v.forma_pago).includes('Mercado')).reduce((a,v)=>a+Number(v.total||0),0)},
+   {name:'Efectivo',value:ventasMes.filter(v=>v.forma_pago==='Efectivo').reduce((a,v)=>a+Number(v.total||0),0)},
+   {name:'Crédito',value:ventasMes.filter(v=>v.forma_pago==='Crédito').reduce((a,v)=>a+Number(v.total||0),0)}
+ ];
 
- const colors=['#8d22d8','#ed43b9','#ff9f1c','#2ecc71','#3498db','#f72585'];
+ const colors=['#8d22d8','#ed43b9','#ff9f1c','#22c55e'];
 
  return <>
-   <section className="cards">
-     <Card t="Ventas del mes" v={money(totalVentas)}/>
-     <Card t="Gastos del mes" v={money(totalGastos)}/>
-     <Card t="IVA estimado" v={money(ivaPagar)}/>
-     <Card t="Cash disponible" v={money(cash)}/>
+   <div className="dash-title">
+     <h1>¡Buenos días, Rosita! 👋</h1>
+     <p>Resumen financiero de hoy</p>
+   </div>
+
+   <section className="cards pro">
+     <Card t="Ventas del mes" v={money(totalVentas)} icon="🛒" sub="100% vs mes anterior"/>
+     <Card t="Gastos del mes" v={money(totalGastos)} icon="👛" sub="0% vs mes anterior"/>
+     <Card t="Cash disponible" v={money(cash)} icon="💵" sub="Disponibilidad real"/>
+     <Card t="IVA estimado" v={money(ivaPagar)} icon="%" sub="Débito fiscal acumulado"/>
+     <Card t="Utilidad estimada" v={money(utilidad)} icon="📊" sub="En el mes actual"/>
    </section>
 
-   <section className="grid">
-     <Panel title="Ventas vs gastos por mes">
-       <ResponsiveContainer width="100%" height={280}>
-         <BarChart data={meses}>
-           <CartesianGrid strokeDasharray="3 3" stroke="#f1d9fa"/>
-           <XAxis dataKey="mes"/>
-           <YAxis/>
-           <Tooltip formatter={money}/>
-           <Bar dataKey="ventas" name="Ventas" fill="#8d22d8" radius={[10,10,0,0]}/>
-           <Bar dataKey="gastos" name="Gastos" fill="#ed43b9" radius={[10,10,0,0]}/>
-         </BarChart>
-       </ResponsiveContainer>
-     </Panel>
-
-     <Panel title="Gastos por categoría">
-       {gastosCat.length === 0 ? (
-         <div className="empty-state">
-           <div className="empty-icon">🧾</div>
-           <h3>Aún no hay gastos</h3>
-           <p>Registra tus gastos para ver el gráfico por categoría.</p>
-         </div>
-       ) : (
-         <ResponsiveContainer width="100%" height={280}>
-           <PieChart>
-             <Pie data={gastosCat} dataKey="value" nameKey="name" innerRadius={70} outerRadius={110} label>
-               {gastosCat.map((_,i)=><Cell key={i} fill={colors[i % colors.length]}/>)}
-             </Pie>
-             <Tooltip formatter={money}/>
-           </PieChart>
-         </ResponsiveContainer>
-       )}
-     </Panel>
-   </section>
-
-   <section className="grid three">
-     <Panel title="Últimas ventas">
-       <Table rows={ventasMes.slice(0,5)} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={()=>{}}/>
-     </Panel>
-
-     <Panel title="Resumen financiero del mes">
-       <div className="finance-list vertical">
-         <b>Total ventas: {money(totalVentas)}</b>
-         <b>Total gastos: {money(totalGastos)}</b>
-         <b>IVA estimado: {money(ivaPagar)}</b>
-         <b>PPM estimado 1%: {money(ppm)}</b>
-         <b>Utilidad estimada: {money(utilidad)}</b>
-         <b className="cash">Cash disponible: {money(cash)}</b>
-       </div>
-     </Panel>
-   </section>
- </>
-}
+   <section className="
 function Card({t,v}){return <div className="card"><span>{t}</span><strong>{v}</strong></div>}
 function Panel({title,children}){return <div className="panel"><h2>{title}</h2>{children}</div>}
 function Ventas(){const {ventas,clientes,servicios,load}=useData(); const [f,setF]=useState({fecha:today(),precio:0,adicional:0,forma_pago:'Débito (Mercado Pago)',estado:'Pagado',documento:'Boleta',afecta_iva:true}); async function save(){const total=Number(f.precio||0)+Number(f.adicional||0); const iva= f.afecta_iva ? calcIVA(total).iva : 0; const neto=f.afecta_iva?calcIVA(total).neto:total; await supabase.from('ventas').insert({...f,total,iva,neto}); setF({...f,precio:0,adicional:0}); load()} async function del(id){if(confirm('¿Eliminar venta?')){await supabase.from('ventas').delete().eq('id',id);load()}} function exp(){const ws=XLSX.utils.json_to_sheet(ventas); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Ventas'); XLSX.writeFile(wb,'ventas_rosita.xlsx')}
