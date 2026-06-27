@@ -358,8 +358,11 @@ function Simple({table,fields,defaults={},compute}){
      <label><input type="checkbox" checked={!!f.afecta_iva} onChange={e=>setF({...f,afecta_iva:e.target.checked})}/> Afecta IVA</label>
    </>}
 
-   <Table rows={rows} cols={fields} del={del} edit={edit}/>
+     <Table rows={rows} cols={fields} del={del} edit={edit}/>
+ </CrudForm>
 }
+
+function CrudForm({title,onSave,children,extra,saveLabel='Guardar'}){
  </CrudForm>
 function CrudForm({title,onSave,children,extra,saveLabel='Guardar'}){
  return <div className="panel">
