@@ -280,4 +280,4 @@ function Simple({table,fields,defaults={},compute}){const [rows,setRows]=useStat
 function CrudForm({title,onSave,children,extra}){return <div className="panel"><div className="panel-head"><h2>{title}</h2><div>{extra}<button onClick={onSave}><Plus size={16}/>Guardar</button></div></div><div className="form">{children}</div></div>}
 function get(obj,path){return path.split('.').reduce((o,k)=>o?.[k],obj)}
 function Table({rows,cols,del}){return <table><thead><tr>{cols.map(c=><th key={c}>{c}</th>)}<th></th></tr></thead><tbody>{rows.map(r=><tr key={r.id}>{cols.map(c=><td key={c}>{c.includes('total')||c.includes('monto')||c.includes('precio')||c.includes('costo')?money(get(r,c)):String(get(r,c)??'')}</td>)}<td><button className="danger" onClick={()=>del(r.id)}><Trash2 size={15}/></button></td></tr>)}</tbody></table>}
-createRoot(document.getElementById('root')).render(<App/>);
+createRoot(document.getElementById('root')).render(<App/>); 
