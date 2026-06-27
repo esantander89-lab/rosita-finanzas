@@ -57,8 +57,17 @@ function Dashboard(){
  const totalGastos=gastosMes.reduce((a,g)=>a+Number(g.monto||0),0);
  const cashDisponible=ingresoRosita-ivaRosita-totalGastos;
 
- const pagos=Object.values(ventasMes.reduce((o,v)=>{
-   const k=(v.forma_pago||'Sin pago').replace('Mercado Pago','MP');
+const normalizarPago = (p) => {
+  const x = (p || 'Sin pago').toLowerCase().replace(/\s/g,'');
+  if(x.includes('debito') || x.includes('débito')) return 'Débito (MP)';
+  if(x.includes('transferencia')) return 'Transferencia';
+  if(x.includes('efectivo')) return 'Efectivo';
+  if(x.includes('credito') || x.includes('crédito')) return 'Crédito';
+  return p || 'Sin pago';
+};
+
+const pagos=Object.values(ventasMes.reduce((o,v)=>{
+   const k=normalizarPago(v.forma_pago);
    o[k]=o[k]||{name:k,monto:0,cantidad:0};
    o[k].monto+=Number(v.total||0);
    o[k].cantidad+=1;
