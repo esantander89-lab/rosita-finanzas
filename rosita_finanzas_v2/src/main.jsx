@@ -163,9 +163,116 @@ function Card({t,v,icon,sub}){
  </div>
 }
 function Panel({title,children}){return <div className="panel"><h2>{title}</h2>{children}</div>}
-function Ventas(){const {ventas,clientes,servicios,load}=useData(); const [f,setF]=useState({fecha:today(),precio:0,adicional:0,forma_pago:'Débito (Mercado Pago)',estado:'Pagado',documento:'Boleta',afecta_iva:true}); async function save(){const total=Number(f.precio||0)+Number(f.adicional||0); const iva= f.afecta_iva ? calcIVA(total).iva : 0; const neto=f.afecta_iva?calcIVA(total).neto:total; await supabase.from('ventas').insert({...f,total,iva,neto}); setF({...f,precio:0,adicional:0}); load()} async function del(id){if(confirm('¿Eliminar venta?')){await supabase.from('ventas').delete().eq('id',id);load()}} function exp(){const ws=XLSX.utils.json_to_sheet(ventas); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Ventas'); XLSX.writeFile(wb,'ventas_rosita.xlsx')}
- return <CrudForm title="Registrar venta" onSave={save} extra={<button onClick={exp}><Download size={16}/>Excel</button>}><input type="date" value={f.fecha} onChange={e=>setF({...f,fecha:e.target.value})}/><select value={f.cliente_id||''} onChange={e=>setF({...f,cliente_id:e.target.value})}><option>Cliente</option>{clientes.map(c=><option value={c.id} key={c.id}>{c.nombre}</option>)}</select><select value={f.servicio_id||''} onChange={e=>setF({...f,servicio_id:e.target.value})}><option>Servicio</option>{servicios.map(s=><option value={s.id} key={s.id}>{s.nombre}</option>)}</select><input placeholder="Precio" type="number" value={f.precio} onChange={e=>setF({...f,precio:e.target.value})}/><input placeholder="Adicional" type="number" value={f.adicional} onChange={e=>setF({...f,adicional:e.target.value})}/><select value={f.forma_pago} onChange={e=>setF({...f,forma_pago:e.target.value})}><option>Débito (Mercado Pago)</option><option>Efectivo</option><option>Transferencia</option><option>Crédito</option></select><select value={f.documento} onChange={e=>setF({...f,documento:e.target.value})}><option>Boleta</option><option>Factura</option><option>Sin documento</option></select><Table rows={ventas} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={del}/></CrudForm>}
-function Clientes(){return <Simple table="clientes" fields={['nombre','telefono','instagram','observaciones']} />}
+function Ventas(){
+ const {ventas,clientes,servicios,load}=useData();
+ const [f,setF]=useState({
+   fecha:today(),
+   cliente_id:'',
+   servicio_id:'',
+   precio:'',
+   adicional:'',
+   forma_pago:'Débito (Mercado Pago)',
+   estado:'Pagado',
+   documento:'Boleta',
+   afecta_iva:true
+ });
+
+ async function save(){
+   if(!f.cliente_id || !f.servicio_id){
+     alert('Debes seleccionar cliente y servicio.');
+     return;
+   }
+
+   const precio=Number(f.precio||0);
+   const adicional=Number(f.adicional||0);
+   const total=precio+adicional;
+   const calc=f.afecta_iva ? calcIVA(total) : {neto:total,iva:0};
+
+   const venta={
+     fecha:f.fecha,
+     cliente_id:f.cliente_id,
+     servicio_id:f.servicio_id,
+     precio,
+     adicional,
+     total,
+     forma_pago:f.forma_pago,
+     estado:f.estado,
+     documento:f.documento,
+     afecta_iva:f.afecta_iva,
+     iva:calc.iva,
+     neto:calc.neto
+   };
+
+   const {error}=await supabase.from('ventas').insert(venta);
+   if(error){
+     console.error('Error guardando venta:', error);
+     alert('Error guardando venta: '+error.message);
+     return;
+   }
+
+   setF({
+     fecha:today(),
+     cliente_id:'',
+     servicio_id:'',
+     precio:'',
+     adicional:'',
+     forma_pago:'Débito (Mercado Pago)',
+     estado:'Pagado',
+     documento:'Boleta',
+     afecta_iva:true
+   });
+   load();
+ }
+
+ async function del(id){
+   if(confirm('¿Eliminar venta?')){
+     await supabase.from('ventas').delete().eq('id',id);
+     load();
+   }
+ }
+
+ function exp(){
+   const ws=XLSX.utils.json_to_sheet(ventas);
+   const wb=XLSX.utils.book_new();
+   XLSX.utils.book_append_sheet(wb,ws,'Ventas');
+   XLSX.writeFile(wb,'ventas_rosita.xlsx');
+ }
+
+ return <CrudForm title="Registrar venta" onSave={save} extra={<button onClick={exp}><Download size={16}/>Excel</button>}>
+   <input type="date" value={f.fecha} onChange={e=>setF({...f,fecha:e.target.value})}/>
+
+   <select value={f.cliente_id} onChange={e=>setF({...f,cliente_id:e.target.value})}>
+     <option value="">Seleccionar cliente</option>
+     {clientes.map(c=><option value={c.id} key={c.id}>{c.nombre}</option>)}
+   </select>
+
+   <select value={f.servicio_id} onChange={e=>{
+     const servicio=servicios.find(s=>s.id===e.target.value);
+     setF({...f,servicio_id:e.target.value,precio:servicio?.precio_base||f.precio});
+   }}>
+     <option value="">Seleccionar servicio</option>
+     {servicios.map(s=><option value={s.id} key={s.id}>{s.nombre}</option>)}
+   </select>
+
+   <input placeholder="Precio" type="number" value={f.precio} onChange={e=>setF({...f,precio:e.target.value})}/>
+   <input placeholder="Adicional" type="number" value={f.adicional} onChange={e=>setF({...f,adicional:e.target.value})}/>
+
+   <select value={f.forma_pago} onChange={e=>setF({...f,forma_pago:e.target.value})}>
+     <option value="Débito (Mercado Pago)">Débito (Mercado Pago)</option>
+     <option value="Efectivo">Efectivo</option>
+     <option value="Transferencia">Transferencia</option>
+     <option value="Crédito">Crédito</option>
+   </select>
+
+   <select value={f.documento} onChange={e=>setF({...f,documento:e.target.value})}>
+     <option value="Boleta">Boleta</option>
+     <option value="Factura">Factura</option>
+     <option value="Sin documento">Sin documento</option>
+   </select>
+
+   <Table rows={ventas} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={del}/>
+ </CrudForm>
+}function Clientes(){return <Simple table="clientes" fields={['nombre','telefono','instagram','observaciones']} />}
 function Servicios(){return <Simple table="servicios" fields={['nombre','precio_base','duracion_minutos']} />}
 function Gastos(){return <Simple table="gastos" fields={['fecha','descripcion','categoria','monto','forma_pago']} defaults={{fecha:today(),tiene_factura:false,afecta_iva:false}} compute={(f)=>{const iva=f.tiene_factura&&f.afecta_iva?calcIVA(f.monto).iva:0; const neto=iva?calcIVA(f.monto).neto:Number(f.monto||0); return {...f,iva,neto}}}/>} 
 function Inventario(){return <Simple table="inventario" fields={['producto','categoria','stock','stock_minimo','costo','proveedor']} />}
