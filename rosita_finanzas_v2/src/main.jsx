@@ -37,125 +37,113 @@ function Shell({tab,setTab,session}){
 function useData(){ const [data,setData]=useState({ventas:[],gastos:[],clientes:[],servicios:[]}); const [loading,setLoading]=useState(true); async function load(){setLoading(true); const [v,g,c,s]=await Promise.all([supabase.from('ventas').select('*, clientes(nombre), servicios(nombre)').order('fecha',{ascending:false}),supabase.from('gastos').select('*').order('fecha',{ascending:false}),supabase.from('clientes').select('*').order('nombre'),supabase.from('servicios').select('*').order('nombre')]); setData({ventas:v.data||[],gastos:g.data||[],clientes:c.data||[],servicios:s.data||[]}); setLoading(false);} useEffect(()=>{load()},[]); return {...data,loading,load};}
 function Dashboard(){
  const d=useData();
- const m=ym(today());
+ const currentMonth=ym(today());
+ const [mes,setMes]=useState(currentMonth);
 
- const ventasMes=d.ventas.filter(v=>ym(v.fecha)===m);
- const gastosMes=d.gastos.filter(g=>ym(g.fecha)===m);
+ const mesesAnio=[
+  ['2026-01','Enero'],['2026-02','Febrero'],['2026-03','Marzo'],['2026-04','Abril'],
+  ['2026-05','Mayo'],['2026-06','Junio'],['2026-07','Julio'],['2026-08','Agosto'],
+  ['2026-09','Septiembre'],['2026-10','Octubre'],['2026-11','Noviembre'],['2026-12','Diciembre']
+ ];
 
- const totalVentas=ventasMes.reduce((a,v)=>a+Number(v.total||0),0);
+ const ventasMes=d.ventas.filter(v=>ym(v.fecha)===mes);
+ const gastosMes=d.gastos.filter(g=>ym(g.fecha)===mes);
+
+ const ventasBrutas=ventasMes.reduce((a,v)=>a+Number(v.total||0),0);
+ const comisionPeluqueria=Math.round(ventasBrutas*0.5);
+ const ingresoRosita=Math.round(ventasBrutas*0.5);
+ const netoRosita=Math.round(ingresoRosita/1.19);
+ const ivaRosita=ingresoRosita-netoRosita;
  const totalGastos=gastosMes.reduce((a,g)=>a+Number(g.monto||0),0);
- const ivaVentas=ventasMes.reduce((a,v)=>a+(Number(v.iva)||calcIVA(v.total).iva),0);
- const ivaCompras=gastosMes.filter(g=>g.tiene_factura&&g.afecta_iva).reduce((a,g)=>a+(Number(g.iva)||calcIVA(g.monto).iva),0);
- const ivaPagar=Math.max(0,ivaVentas-ivaCompras);
- const ppm=Math.round(totalVentas*0.01);
- const cash=totalVentas-totalGastos-ivaPagar-ppm;
- const utilidad=totalVentas-totalGastos;
-
- const meses=[...new Set([...d.ventas.map(x=>ym(x.fecha)),...d.gastos.map(x=>ym(x.fecha))])]
-   .sort().slice(-6).map(k=>({
-     mes:k.slice(5,7),
-     ventas:d.ventas.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.total||0),0),
-     gastos:d.gastos.filter(x=>ym(x.fecha)===k).reduce((a,x)=>a+Number(x.monto||0),0)
-   }));
-
- const gastosCat=Object.values(gastosMes.reduce((o,g)=>{
-   let k=g.categoria||'Otros';
-   o[k]=o[k]||{name:k,value:0};
-   o[k].value+=Number(g.monto||0);
-   return o;
- },{}));
+ const cashDisponible=ingresoRosita-ivaRosita-totalGastos;
 
  const pagos=Object.values(ventasMes.reduce((o,v)=>{
-   let k=(v.forma_pago||'Sin pago').replace('Mercado Pago','MP');
-   o[k]=o[k]||{name:k,value:0};
-   o[k].value+=Number(v.total||0);
+   const k=(v.forma_pago||'Sin pago').replace('Mercado Pago','MP');
+   o[k]=o[k]||{name:k,monto:0,cantidad:0};
+   o[k].monto+=Number(v.total||0);
+   o[k].cantidad+=1;
    return o;
  },{}));
+
+ const mesesGrafico=mesesAnio.map(([key,label])=>({
+   mes:label.slice(0,3),
+   ventas:d.ventas.filter(x=>ym(x.fecha)===key).reduce((a,x)=>a+Number(x.total||0),0),
+   rosita:Math.round(d.ventas.filter(x=>ym(x.fecha)===key).reduce((a,x)=>a+Number(x.total||0),0)*0.5)
+ }));
 
  const colors=['#8d22d8','#ed43b9','#ff9f1c','#2ecc71','#3498db','#f72585'];
 
  return <>
-   <div className="hero">
-     <div>
-       <h1>¡Buenos días, Rosita! 👋</h1>
-       <p>Resumen financiero de hoy</p>
-     </div>
+  <div className="hero">
+   <div>
+    <h1>Libro financiero mensual</h1>
+    <p>Control de ingresos de Rosita como peluquera independiente</p>
    </div>
+   <select className="month-select" value={mes} onChange={e=>setMes(e.target.value)}>
+    {mesesAnio.map(([key,label])=><option key={key} value={key}>{label}</option>)}
+   </select>
+  </div>
 
-   <section className="cards pro">
-     <Card t="Ventas del mes" v={money(totalVentas)} icon="🛒" sub="Ingreso bruto mensual"/>
-     <Card t="Gastos del mes" v={money(totalGastos)} icon="👛" sub="Total gastos registrados"/>
-     <Card t="Cash disponible" v={money(cash)} icon="💵" sub="Disponibilidad real"/>
-     <Card t="IVA estimado" v={money(ivaPagar)} icon="%" sub="Débito fiscal acumulado"/>
-     <Card t="Utilidad estimada" v={money(utilidad)} icon="📊" sub="Antes de impuestos"/>
-   </section>
+  <section className="cards pro">
+   <Card t="Total vendido" v={money(ventasBrutas)} icon="💰" sub="Ventas brutas del mes"/>
+   <Card t="50% peluquería" v={money(comisionPeluqueria)} icon="🏠" sub="Comisión del salón"/>
+   <Card t="50% Rosita" v={money(ingresoRosita)} icon="💜" sub="Ingreso bruto Rosita"/>
+   <Card t="IVA Rosita" v={money(ivaRosita)} icon="%" sub="IVA incluido en su 50%"/>
+   <Card t="Cash disponible" v={money(cashDisponible)} icon="💵" sub="Después de IVA y gastos"/>
+  </section>
 
-   <section className="grid dashboard-grid">
-     <Panel title="Ventas vs Gastos">
-       <p className="panel-sub">Comparación mensual</p>
-       <ResponsiveContainer width="100%" height={260}>
-         <BarChart data={meses}>
-           <CartesianGrid strokeDasharray="3 3" stroke="#f3e3fa"/>
-           <XAxis dataKey="mes"/>
-           <YAxis/>
-           <Tooltip formatter={money}/>
-           <Bar dataKey="ventas" name="Ventas" fill="#8d22d8" radius={[10,10,0,0]}/>
-           <Bar dataKey="gastos" name="Gastos" fill="#ed43b9" radius={[10,10,0,0]}/>
-         </BarChart>
-       </ResponsiveContainer>
-     </Panel>
+  <section className="grid dashboard-grid">
+   <Panel title="Ventas anuales">
+    <p className="panel-sub">Total vendido vs ingreso Rosita por mes</p>
+    <ResponsiveContainer width="100%" height={260}>
+     <BarChart data={mesesGrafico}>
+      <CartesianGrid strokeDasharray="3 3" stroke="#f3e3fa"/>
+      <XAxis dataKey="mes"/>
+      <YAxis/>
+      <Tooltip formatter={money}/>
+      <Bar dataKey="ventas" name="Total vendido" fill="#8d22d8" radius={[10,10,0,0]}/>
+      <Bar dataKey="rosita" name="50% Rosita" fill="#ed43b9" radius={[10,10,0,0]}/>
+     </BarChart>
+    </ResponsiveContainer>
+   </Panel>
 
-     <Panel title="Gastos por categoría">
-       <p className="panel-sub">Distribución del mes</p>
-       {gastosCat.length===0 ? <div className="empty-state compact"><div className="empty-icon">🧾</div><h3>Aún no hay gastos</h3><p>Registra gastos para ver la distribución.</p></div> :
-       <ResponsiveContainer width="100%" height={260}>
-         <PieChart>
-           <Pie data={gastosCat} dataKey="value" nameKey="name" innerRadius={70} outerRadius={105}>
-             {gastosCat.map((_,i)=><Cell key={i} fill={colors[i%colors.length]}/>)}
-           </Pie>
-           <Tooltip formatter={money}/>
-         </PieChart>
-       </ResponsiveContainer>}
-     </Panel>
-   </section>
+   <Panel title="Métodos de pago">
+    <p className="panel-sub">Resumen del mes seleccionado</p>
+    {pagos.length===0 ? <div className="empty-state compact"><div className="empty-icon">💳</div><h3>Sin pagos</h3><p>No hay ventas registradas este mes.</p></div> :
+    <div className="payment-list">
+     {pagos.map((p,i)=>{
+      const pct=ventasBrutas?Math.round((p.monto/ventasBrutas)*100):0;
+      return <div className="payment-row" key={p.name}>
+       <span style={{background:colors[i%colors.length]}}></span>
+       <b>{p.name}</b>
+       <small>{p.cantidad} ventas</small>
+       <strong>{money(p.monto)}</strong>
+       <em>{pct}%</em>
+      </div>
+     })}
+    </div>}
+   </Panel>
+  </section>
 
-   <section className="grid bottom-grid">
-     <Panel title="Ventas recientes">
-       <Table rows={ventasMes.slice(0,5)} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={()=>{}}/>
-     </Panel>
+  <section className="grid bottom-grid">
+   <Panel title="Ventas del mes">
+    <Table rows={ventasMes} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={()=>{}}/>
+   </Panel>
 
-     <Panel title="Métodos de pago">
-       {pagos.length===0 ? <div className="empty-state small"><div className="empty-icon">💳</div><p>Sin pagos registrados</p></div> :
-       <ResponsiveContainer width="100%" height={220}>
-         <PieChart>
-           <Pie data={pagos} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85}>
-             {pagos.map((_,i)=><Cell key={i} fill={colors[i%colors.length]}/>)}
-           </Pie>
-           <Tooltip formatter={money}/>
-         </PieChart>
-       </ResponsiveContainer>}
-     </Panel>
-
-     <Panel title="Resumen financiero del mes">
-       <div className="finance-list vertical">
-         <b>Total ventas <span>{money(totalVentas)}</span></b>
-         <b>Total gastos <span>{money(totalGastos)}</span></b>
-         <b>IVA estimado <span>{money(ivaPagar)}</span></b>
-         <b>PPM 1% <span>{money(ppm)}</span></b>
-         <b>Utilidad <span>{money(utilidad)}</span></b>
-         <b className="cash">Cash disponible <span>{money(cash)}</span></b>
-       </div>
-     </Panel>
-   </section>
-
-   <div className="tip">
-     <span>💡</span>
-     <b>Consejo del día:</b>
-     <p>Mantén un registro constante de ventas y gastos para conocer tu utilidad real.</p>
-   </div>
+   <Panel title="Resumen financiero">
+    <div className="finance-list vertical">
+     <b>Total vendido <span>{money(ventasBrutas)}</span></b>
+     <b>Comisión peluquería 50% <span>{money(comisionPeluqueria)}</span></b>
+     <b>Ingreso bruto Rosita 50% <span>{money(ingresoRosita)}</span></b>
+     <b>Neto Rosita <span>{money(netoRosita)}</span></b>
+     <b>IVA estimado <span>{money(ivaRosita)}</span></b>
+     <b>Gastos del mes <span>{money(totalGastos)}</span></b>
+     <b className="cash">Cash disponible <span>{money(cashDisponible)}</span></b>
+    </div>
+   </Panel>
+  </section>
  </>
 }
-
 function Card({t,v,icon,sub}){
  return <div className="card stat-card">
    <div>
