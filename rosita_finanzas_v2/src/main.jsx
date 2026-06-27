@@ -194,7 +194,6 @@ function Ventas(){
      servicio_id:f.servicio_id,
      precio,
      adicional,
-     total,
      forma_pago:f.forma_pago,
      estado:f.estado,
      documento:f.documento,
