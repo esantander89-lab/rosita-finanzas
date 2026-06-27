@@ -363,9 +363,6 @@ function Simple({table,fields,defaults={},compute}){
 }
 
 function CrudForm({title,onSave,children,extra,saveLabel='Guardar'}){
- </CrudForm>
-   
-function CrudForm({title,onSave,children,extra,saveLabel='Guardar'}){
  return <div className="panel">
    <div className="panel-head">
      <h2>{title}</h2>
