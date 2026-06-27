@@ -293,8 +293,82 @@ function Servicios(){return <Simple table="servicios" fields={['nombre','precio_
 function Gastos(){return <Simple table="gastos" fields={['fecha','descripcion','categoria','monto','forma_pago']} defaults={{fecha:today(),tiene_factura:false,afecta_iva:false}} compute={(f)=>{const iva=f.tiene_factura&&f.afecta_iva?calcIVA(f.monto).iva:0; const neto=iva?calcIVA(f.monto).neto:Number(f.monto||0); return {...f,iva,neto}}}/>} 
 function Inventario(){return <Simple table="inventario" fields={['producto','categoria','stock','stock_minimo','costo','proveedor']} />}
 function Finanzas(){return <Dashboard/>}
-function Simple({table,fields,defaults={},compute}){const [rows,setRows]=useState([]); const [f,setF]=useState(defaults); async function load(){const {data}=await supabase.from(table).select('*').order(fields[0]); setRows(data||[])} useEffect(()=>{load()},[]); async function save(){await supabase.from(table).insert(compute?compute(f):f); setF(defaults); load()} async function del(id){if(confirm('¿Eliminar registro?')){await supabase.from(table).delete().eq('id',id);load()}} return <CrudForm title={`Nuevo registro: ${table}`} onSave={save}>{fields.map(x=><input key={x} placeholder={x} type={x.includes('fecha')?'date':x.includes('monto')||x.includes('precio')||x.includes('stock')||x.includes('costo')||x.includes('duracion')?'number':'text'} value={f[x]||''} onChange={e=>setF({...f,[x]:e.target.value})}/>) }{table==='gastos'&&<><label><input type="checkbox" onChange={e=>setF({...f,tiene_factura:e.target.checked})}/> Tiene factura</label><label><input type="checkbox" onChange={e=>setF({...f,afecta_iva:e.target.checked})}/> Afecta IVA</label></>}<Table rows={rows} cols={fields} del={del}/></CrudForm>}
-function CrudForm({title,onSave,children,extra}){return <div className="panel"><div className="panel-head"><h2>{title}</h2><div>{extra}<button onClick={onSave}><Plus size={16}/>Guardar</button></div></div><div className="form">{children}</div></div>}
+function Simple({table,fields,defaults={},compute}){
+ const [rows,setRows]=useState([]);
+ const [f,setF]=useState(defaults);
+ const [editId,setEditId]=useState(null);
+
+ async function load(){
+   const {data}=await supabase.from(table).select('*').order(fields[0]);
+   setRows(data||[]);
+ }
+
+ useEffect(()=>{load()},[]);
+
+ async function save(){
+   const payload=compute?compute(f):f;
+
+   if(editId){
+     await supabase.from(table).update(payload).eq('id',editId);
+   }else{
+     await supabase.from(table).insert(payload);
+   }
+
+   setF(defaults);
+   setEditId(null);
+   load();
+ }
+
+ function edit(row){
+   setEditId(row.id);
+   setF({...row});
+   window.scrollTo({top:0,behavior:'smooth'});
+ }
+
+ function cancelEdit(){
+   setEditId(null);
+   setF(defaults);
+ }
+
+ async function del(id){
+   if(confirm('¿Eliminar registro?')){
+     await supabase.from(table).delete().eq('id',id);
+     load();
+   }
+ }
+
+ return <CrudForm
+   title={editId ? `Editar registro: ${table}` : `Nuevo registro: ${table}`}
+   onSave={save}
+   saveLabel={editId ? 'Actualizar' : 'Guardar'}
+   extra={editId && <button className="ghost" onClick={cancelEdit}>Cancelar</button>}
+ >
+   {fields.map(x=>
+     <input
+       key={x}
+       placeholder={x}
+       type={x.includes('fecha')?'date':x.includes('monto')||x.includes('precio')||x.includes('stock')||x.includes('costo')||x.includes('duracion')?'number':'text'}
+       value={f[x]||''}
+       onChange={e=>setF({...f,[x]:e.target.value})}
+     />
+   )}
+
+   {table==='gastos'&&<>
+     <label><input type="checkbox" checked={!!f.tiene_factura} onChange={e=>setF({...f,tiene_factura:e.target.checked})}/> Tiene factura</label>
+     <label><input type="checkbox" checked={!!f.afecta_iva} onChange={e=>setF({...f,afecta_iva:e.target.checked})}/> Afecta IVA</label>
+   </>}
+
+   <Table rows={rows} cols={fields} del={del} edit={edit}/>
+ </CrudForm>
+function CrudForm({title,onSave,children,extra,saveLabel='Guardar'}){
+ return <div className="panel">
+   <div className="panel-head">
+     <h2>{title}</h2>
+     <div>{extra}<button onClick={onSave}><Plus size={16}/>{saveLabel}</button></div>
+   </div>
+   <div className="form">{children}</div>
+ </div>
+}
 function get(obj,path){return path.split('.').reduce((o,k)=>o?.[k],obj)}
 function Table({rows,cols,del,edit}){
  return <table>
