@@ -169,7 +169,7 @@ function Card({t,v,icon,sub}){
 function Panel({title,children}){return <div className="panel"><h2>{title}</h2>{children}</div>}
 function Ventas(){
  const {ventas,clientes,servicios,load}=useData();
- const [f,setF]=useState({
+ const initialVenta={
    fecha:today(),
    cliente_id:'',
    servicio_id:'',
@@ -179,7 +179,9 @@ function Ventas(){
    estado:'Pagado',
    documento:'Boleta',
    afecta_iva:true
- });
+ };
+ const [f,setF]=useState(initialVenta);
+ const [editId,setEditId]=useState(null);
 
  async function save(){
    if(!f.cliente_id || !f.servicio_id){
@@ -206,25 +208,40 @@ function Ventas(){
      neto:calc.neto
    };
 
-   const {error}=await supabase.from('ventas').insert(venta);
-   if(error){
-     console.error('Error guardando venta:', error);
-     alert('Error guardando venta: '+error.message);
+   const result = editId
+     ? await supabase.from('ventas').update(venta).eq('id',editId)
+     : await supabase.from('ventas').insert(venta);
+
+   if(result.error){
+     console.error('Error guardando venta:', result.error);
+     alert('Error guardando venta: '+result.error.message);
      return;
    }
 
-   setF({
-     fecha:today(),
-     cliente_id:'',
-     servicio_id:'',
-     precio:'',
-     adicional:'',
-     forma_pago:'Débito (Mercado Pago)',
-     estado:'Pagado',
-     documento:'Boleta',
-     afecta_iva:true
-   });
+   setF(initialVenta);
+   setEditId(null);
    load();
+ }
+
+ function edit(row){
+   setEditId(row.id);
+   setF({
+     fecha:row.fecha || today(),
+     cliente_id:row.cliente_id || '',
+     servicio_id:row.servicio_id || '',
+     precio:row.precio || '',
+     adicional:row.adicional || '',
+     forma_pago:row.forma_pago || 'Débito (Mercado Pago)',
+     estado:row.estado || 'Pagado',
+     documento:row.documento || 'Boleta',
+     afecta_iva:row.afecta_iva ?? true
+   });
+   window.scrollTo({top:0,behavior:'smooth'});
+ }
+
+ function cancelEdit(){
+   setEditId(null);
+   setF(initialVenta);
  }
 
  async function del(id){
@@ -241,7 +258,14 @@ function Ventas(){
    XLSX.writeFile(wb,'ventas_rosita.xlsx');
  }
 
- return <CrudForm title="Registrar venta" onSave={save} extra={<button onClick={exp}><Download size={16}/>Excel</button>}>
+ return <CrudForm
+   title={editId ? 'Editar venta' : 'Registrar venta'}
+   onSave={save}
+   extra={<>
+     <button onClick={exp}><Download size={16}/>Excel</button>
+     {editId && <button className="ghost" onClick={cancelEdit}>Cancelar</button>}
+   </>}
+ >
    <input type="date" value={f.fecha} onChange={e=>setF({...f,fecha:e.target.value})}/>
 
    <select value={f.cliente_id} onChange={e=>setF({...f,cliente_id:e.target.value})}>
@@ -273,8 +297,9 @@ function Ventas(){
      <option value="Sin documento">Sin documento</option>
    </select>
 
-   <Table rows={ventas} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={del}/>
+   <Table rows={ventas} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={del} edit={edit}/>
  </CrudForm>
+}
 }function Clientes(){return <Simple table="clientes" fields={['nombre','telefono','instagram','observaciones']} />}
 function Servicios(){return <Simple table="servicios" fields={['nombre','precio_base','duracion_minutos']} />}
 function Gastos(){return <Simple table="gastos" fields={['fecha','descripcion','categoria','monto','forma_pago']} defaults={{fecha:today(),tiene_factura:false,afecta_iva:false}} compute={(f)=>{const iva=f.tiene_factura&&f.afecta_iva?calcIVA(f.monto).iva:0; const neto=iva?calcIVA(f.monto).neto:Number(f.monto||0); return {...f,iva,neto}}}/>} 
@@ -283,5 +308,20 @@ function Finanzas(){return <Dashboard/>}
 function Simple({table,fields,defaults={},compute}){const [rows,setRows]=useState([]); const [f,setF]=useState(defaults); async function load(){const {data}=await supabase.from(table).select('*').order(fields[0]); setRows(data||[])} useEffect(()=>{load()},[]); async function save(){await supabase.from(table).insert(compute?compute(f):f); setF(defaults); load()} async function del(id){if(confirm('¿Eliminar registro?')){await supabase.from(table).delete().eq('id',id);load()}} return <CrudForm title={`Nuevo registro: ${table}`} onSave={save}>{fields.map(x=><input key={x} placeholder={x} type={x.includes('fecha')?'date':x.includes('monto')||x.includes('precio')||x.includes('stock')||x.includes('costo')||x.includes('duracion')?'number':'text'} value={f[x]||''} onChange={e=>setF({...f,[x]:e.target.value})}/>) }{table==='gastos'&&<><label><input type="checkbox" onChange={e=>setF({...f,tiene_factura:e.target.checked})}/> Tiene factura</label><label><input type="checkbox" onChange={e=>setF({...f,afecta_iva:e.target.checked})}/> Afecta IVA</label></>}<Table rows={rows} cols={fields} del={del}/></CrudForm>}
 function CrudForm({title,onSave,children,extra}){return <div className="panel"><div className="panel-head"><h2>{title}</h2><div>{extra}<button onClick={onSave}><Plus size={16}/>Guardar</button></div></div><div className="form">{children}</div></div>}
 function get(obj,path){return path.split('.').reduce((o,k)=>o?.[k],obj)}
-function Table({rows,cols,del}){return <table><thead><tr>{cols.map(c=><th key={c}>{c}</th>)}<th></th></tr></thead><tbody>{rows.map(r=><tr key={r.id}>{cols.map(c=><td key={c}>{c.includes('total')||c.includes('monto')||c.includes('precio')||c.includes('costo')?money(get(r,c)):String(get(r,c)??'')}</td>)}<td><button className="danger" onClick={()=>del(r.id)}><Trash2 size={15}/></button></td></tr>)}</tbody></table>}
+function Table({rows,cols,del,edit}){
+ return <table>
+   <thead>
+     <tr>{cols.map(c=><th key={c}>{c}</th>)}<th>acciones</th></tr>
+   </thead>
+   <tbody>
+     {rows.map(r=><tr key={r.id}>
+       {cols.map(c=><td key={c}>{c.includes('total')||c.includes('monto')||c.includes('precio')||c.includes('costo')?money(get(r,c)):String(get(r,c)??'')}</td>)}
+       <td className="actions">
+         {edit && <button className="edit" onClick={()=>edit(r)}><Pencil size={15}/></button>}
+         <button className="danger" onClick={()=>del(r.id)}><Trash2 size={15}/></button>
+       </td>
+     </tr>)}
+   </tbody>
+ </table>
+}
 createRoot(document.getElementById('root')).render(<App/>); 
