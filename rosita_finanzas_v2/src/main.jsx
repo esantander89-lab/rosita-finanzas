@@ -10,7 +10,11 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://qpkcsjxnxbzoom
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_CkOpCtsgAFrJjkGnEct0Qw_Q3C2zDOH';
 const supabase = createClient(supabaseUrl, supabaseKey);
 const money = n => new Intl.NumberFormat('es-CL', {style:'currency', currency:'CLP', maximumFractionDigits:0}).format(Number(n||0));
-const today = () => new Date().toISOString().slice(0,10);
+const today = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0,10);
+};
 const ym = d => (d||today()).slice(0,7);
 function calcIVA(total){ const neto = Math.round(Number(total||0)/1.19); return {neto, iva: Math.round(Number(total||0)-neto)}; }
 
