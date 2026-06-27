@@ -359,6 +359,7 @@ function Simple({table,fields,defaults={},compute}){
    </>}
 
    <Table rows={rows} cols={fields} del={del} edit={edit}/>
+}
  </CrudForm>
 function CrudForm({title,onSave,children,extra,saveLabel='Guardar'}){
  return <div className="panel">
