@@ -208,3 +208,55 @@
   background:linear-gradient(90deg,#4f46e5,#8b5cf6);
   padding:10px;
 }
+.month-select{
+  padding:14px 18px;
+  border:1px solid #ead3f3;
+  border-radius:16px;
+  background:white;
+  font-weight:800;
+  color:#5c078c;
+}
+
+.hero{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:20px;
+}
+
+.payment-list{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.payment-row{
+  display:grid;
+  grid-template-columns:14px 1fr auto auto auto;
+  gap:12px;
+  align-items:center;
+  padding:14px;
+  border:1px solid #efd4f7;
+  border-radius:16px;
+  background:#fff8ff;
+}
+
+.payment-row span{
+  width:14px;
+  height:14px;
+  border-radius:50%;
+}
+
+.payment-row small{
+  color:#7b557e;
+}
+
+.payment-row strong{
+  color:#17031f;
+}
+
+.payment-row em{
+  font-style:normal;
+  font-weight:900;
+  color:#8d22d8;
+}
