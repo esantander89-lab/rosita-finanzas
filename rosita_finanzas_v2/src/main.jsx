@@ -300,7 +300,7 @@ function Ventas(){
    <Table rows={ventas} cols={['fecha','clientes.nombre','servicios.nombre','forma_pago','total']} del={del} edit={edit}/>
  </CrudForm>
 }
-}function Clientes(){return <Simple table="clientes" fields={['nombre','telefono','instagram','observaciones']} />}
+function Clientes(){return <Simple table="clientes" fields={['nombre','telefono','instagram','observaciones']} />}
 function Servicios(){return <Simple table="servicios" fields={['nombre','precio_base','duracion_minutos']} />}
 function Gastos(){return <Simple table="gastos" fields={['fecha','descripcion','categoria','monto','forma_pago']} defaults={{fecha:today(),tiene_factura:false,afecta_iva:false}} compute={(f)=>{const iva=f.tiene_factura&&f.afecta_iva?calcIVA(f.monto).iva:0; const neto=iva?calcIVA(f.monto).neto:Number(f.monto||0); return {...f,iva,neto}}}/>} 
 function Inventario(){return <Simple table="inventario" fields={['producto','categoria','stock','stock_minimo','costo','proveedor']} />}
